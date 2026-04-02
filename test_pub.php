@@ -5,12 +5,15 @@
  */
 
 require_once __DIR__ . '/vendor/autoload.php';
+require_once __DIR__ . '/includes/config.php';
+require_once __DIR__ . '/includes/db.php';
 use PhpMqtt\Client\MqttClient;
 
 $type = $argv[1] ?? 'all'; // node, tag, or all
 
 try {
-    $mqtt = new MqttClient('127.0.0.1', 1883, 'test_pub_client');
+    $mqttHost = getSetting('mqtt_host', '10.2.6.202');
+    $mqtt = new MqttClient($mqttHost, 1883, 'test_pub_client');
     $mqtt->connect();
 
     // 1. 模擬 NODE 心跳 (維持 NODE 上線狀態，電量 100%)

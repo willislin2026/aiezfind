@@ -12,7 +12,7 @@ use PhpMqtt\Client\MqttClient;
 $type = $argv[1] ?? 'all'; // node, tag, or all
 
 try {
-    $mqttHost = getSetting('mqtt_host', '10.2.6.202');
+    $mqttHost = getSetting('mqtt_host', '127.0.0.1');
     $mqtt = new MqttClient($mqttHost, 1883, 'test_pub_client');
     $mqtt->connect();
     

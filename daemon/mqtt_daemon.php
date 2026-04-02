@@ -1,7 +1,7 @@
 #!/usr/bin/env php
 <?php
 /**
- * AiezFind — MQTT 訂閱守護程序
+ * AiezFind — MQTT 訂閱守護程序 (使用純 PHP 套件 php-mqtt/client)
  *
  * 執行方式：
  *   php daemon/mqtt_daemon.php
@@ -9,8 +9,6 @@
  * 訂閱：
  *   eznode/#  → NODE 心跳（更新 nodes 表狀態與電量）
  *   eztag/#   → TAG 偵測（寫入 rssi_log，計算位置，偵測圍欄）
- *
- * 需要 PHP Mosquitto Extension (php-mosquitto)
  */
 
 declare(strict_types=1);
@@ -19,9 +17,19 @@ ini_set('display_errors', '1');
 
 // 取得專案根目錄路徑
 $rootDir = dirname(__DIR__);
+
+// 載入 Composer 自動加載檔
+if (!file_exists($rootDir . '/vendor/autoload.php')) {
+    die("錯誤：找不到 vendor/autoload.php，請先執行 composer require php-mqtt/client\n");
+}
+require_once $rootDir . '/vendor/autoload.php';
+
 require_once $rootDir . '/includes/config.php';
 require_once $rootDir . '/includes/db.php';
 require_once $rootDir . '/includes/positioning.php';
+
+use PhpMqtt\Client\MqttClient;
+use PhpMqtt\Client\ConnectionSettings;
 
 // ── 日誌輸出 ─────────────────────────────────────────────
 function logMsg(string $level, string $msg): void
@@ -50,60 +58,53 @@ try {
 
 // ── 建立 MQTT Client ─────────────────────────────────────
 $clientId = MQTT_CLIENT_ID . '_' . getmypid();
-$client   = new Mosquitto\Client($clientId);
 
-// ── 連線回呼 ─────────────────────────────────────────────
-$client->onConnect(function (int $rc, string $message) use ($client): void {
-    if ($rc !== 0) {
-        logMsg('ERROR', "MQTT 連線失敗，代碼 $rc: $message");
-        exit(1);
+try {
+    $mqtt = new MqttClient($mqttHost, $mqttPort, $clientId);
+
+    $connectionSettings = (new ConnectionSettings())
+        ->setKeepAliveInterval(60);
+
+    if ($mqttUser !== '') {
+        $connectionSettings->setUsername($mqttUser)->setPassword($mqttPass);
     }
+
+    $mqtt->connect($connectionSettings, true);
     logMsg('INFO', 'MQTT 連線成功');
-    $client->subscribe('eznode/#', 1);
-    $client->subscribe('eztag/#',  1);
-    logMsg('INFO', '已訂閱 eznode/# 與 eztag/#');
-});
 
-// ── 斷線回呼 ─────────────────────────────────────────────
-$client->onDisconnect(function (int $rc) use ($client, $mqttHost, $mqttPort): void {
-    logMsg('WARN', "MQTT 斷線（代碼 $rc），3 秒後重連...");
-    sleep(3);
-    $client->connect($mqttHost, $mqttPort, 60);
-});
-
-// ── 訊息回呼 ─────────────────────────────────────────────
-$client->onMessage(function ($message) use (&$client): void {
-    $topic   = $message->topic;
-    $payload = json_decode($message->payload, true);
-
-    if (!is_array($payload)) {
-        logMsg('WARN', "無效 JSON payload — topic: $topic");
-        return;
-    }
-
-    try {
-        $pdo = db();
-
-        if (str_starts_with($topic, 'eznode/')) {
-            handleNodeHeartbeat($pdo, $topic, $payload);
-        } elseif (str_starts_with($topic, 'eztag/')) {
-            handleTagDetection($pdo, $topic, $payload);
+    // 處理收到訊息的回呼函式
+    $messageHandler = function (string $topic, string $message, bool $retained) {
+        $payload = json_decode($message, true);
+        if (!is_array($payload)) {
+            logMsg('WARN', "無效 JSON payload — topic: $topic");
+            return;
         }
-    } catch (Throwable $e) {
-        logMsg('ERROR', $e->getMessage());
-    }
-});
 
-// ── 認證 & 連線 ──────────────────────────────────────────
-if ($mqttUser !== '') {
-    $client->setCredentials($mqttUser, $mqttPass);
-}
+        try {
+            $pdo = db();
 
-$client->connect($mqttHost, $mqttPort, 60);
+            if (str_starts_with($topic, 'eznode/')) {
+                handleNodeHeartbeat($pdo, $topic, $payload);
+            } elseif (str_starts_with($topic, 'eztag/')) {
+                handleTagDetection($pdo, $topic, $payload);
+            }
+        } catch (Throwable $e) {
+            logMsg('ERROR', $e->getMessage());
+        }
+    };
 
-// ── 主迴圈 ───────────────────────────────────────────────
-while (true) {
-    $client->loop(-1);
+    // 訂閱主題
+    $mqtt->subscribe('eznode/#', $messageHandler, 1);
+    $mqtt->subscribe('eztag/#',  $messageHandler, 1);
+    logMsg('INFO', '已訂閱 eznode/# 與 eztag/#');
+
+    // 進入無窮迴圈監聽
+    $mqtt->loop(true);
+    
+    $mqtt->disconnect();
+} catch (\Exception $e) {
+    logMsg('ERROR', "MQTT 發生錯誤: " . $e->getMessage());
+    exit(1);
 }
 
 // ═══════════════════════════════════════════════════════════════

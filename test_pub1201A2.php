@@ -30,7 +30,7 @@ try {
 
     // 2. 模擬 TAG 被偵測到
     if ($type === 'tag' || $type === 'all') {
-        $tagTopic = 'eztag/1200A3';
+        $tagTopic = 'eztag/1200B2';
         
         // 接受第二個參數改變距離 (RSSI)，預設為 C1 (-63 dBm) 約 1 公尺
         // 若帶入更小的值如 D8 (-40 dBm) 會更近， B0 (-80 dBm) 會更遠
@@ -38,7 +38,7 @@ try {
 
         $tagPayload = json_encode([
             "ID"     => "1201A2", // 偵測到它的 NODE ID
-            "CardNo" => "1200A3", // TAG 本身的 ID
+            "CardNo" => "1200B2", // TAG 本身的 ID
             "BAT"    => "4A",     // 轉換約 74%
             "RSSI"   => $rssi,
         ]);

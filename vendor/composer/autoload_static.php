@@ -10,11 +10,16 @@ class ComposerStaticInit85103208e79dcb6fc5045db950d12623
         'P' =>
         array (
             'Psr\\Log\\' => 8,
+            'PhpOffice\\PhpWord\\' => 18,
             'PhpMqtt\\Client\\' => 15,
         ),
         'M' =>
         array (
             'MyCLabs\\Enum\\' => 13,
+        ),
+        'L' =>
+        array (
+            'Laminas\\Escaper\\' => 16,
         ),
     );
 
@@ -23,6 +28,10 @@ class ComposerStaticInit85103208e79dcb6fc5045db950d12623
         array (
             0 => __DIR__ . '/..' . '/psr/log/src',
         ),
+        'PhpOffice\\PhpWord\\' =>
+        array (
+            0 => __DIR__ . '/..' . '/phpoffice/phpword/src/PhpWord',
+        ),
         'PhpMqtt\\Client\\' =>
         array (
             0 => __DIR__ . '/..' . '/php-mqtt/client/src',
@@ -30,6 +39,10 @@ class ComposerStaticInit85103208e79dcb6fc5045db950d12623
         'MyCLabs\\Enum\\' =>
         array (
             0 => __DIR__ . '/..' . '/myclabs/php-enum/src',
+        ),
+        'Laminas\\Escaper\\' =>
+        array (
+            0 => __DIR__ . '/..' . '/laminas/laminas-escaper/src',
         ),
     );
 

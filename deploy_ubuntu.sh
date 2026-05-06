@@ -18,13 +18,13 @@ if [ ! -f "aiezfind_deploy.zip" ]; then
     exit 1
 fi
 
-echo "✅ 1. 正在更新系統來源與安裝必備套件 (Apache, MariaDB, PHP 8.1, Composer)..."
+echo "✅ 1. 正在更新系統來源與安裝必備套件 (Apache, MariaDB, PHP 8.4, Composer)..."
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq
 apt-get install -y software-properties-common -qq
 add-apt-repository -y ppa:ondrej/php
 apt-get update -qq
-apt-get install -y apache2 mariadb-server php8.1 libapache2-mod-php8.1 php8.1-mysql php8.1-cli php8.1-mbstring unzip curl -qq
+apt-get install -y apache2 mariadb-server php8.4 libapache2-mod-php8.4 php8.4-mysql php8.4-cli php8.4-mbstring unzip curl -qq
 
 # 若指令安裝 Composer 失敗，備用安裝方式
 if ! command -v composer &> /dev/null; then
@@ -69,7 +69,7 @@ After=network.target mariadb.service apache2.service
 Type=simple
 User=www-data
 WorkingDirectory=/var/www/html/aiezfind
-ExecStart=/usr/bin/php8.1 /var/www/html/aiezfind/daemon/mqtt_daemon1.php
+ExecStart=/usr/bin/php8.4 /var/www/html/aiezfind/daemon/mqtt_daemon1.php
 StandardOutput=syslog
 StandardError=syslog
 SyslogIdentifier=AiezFind-MQTT
@@ -84,14 +84,34 @@ systemctl daemon-reload
 systemctl enable aiezfind-daemon.service
 systemctl restart aiezfind-daemon.service
 
-echo "✅ 6. 重啟 Apache 伺服器套用設定..."
+echo "✅ 6. 正在安裝 phpMyAdmin..."
+# 預先設定 phpMyAdmin 安裝選項，跳過互動式問答
+echo "phpmyadmin phpmyadmin/dbconfig-install boolean true" | debconf-set-selections
+echo "phpmyadmin phpmyadmin/app-password-confirm password mysql_root" | debconf-set-selections
+echo "phpmyadmin phpmyadmin/mysql/admin-pass password mysql_root" | debconf-set-selections
+echo "phpmyadmin phpmyadmin/mysql/app-pass password mysql_root" | debconf-set-selections
+echo "phpmyadmin phpmyadmin/reconfigure-webserver multiselect apache2" | debconf-set-selections
+apt-get install -y phpmyadmin -qq
+
+# 確保 Apache 載入 phpMyAdmin 設定
+if [ ! -f /etc/apache2/conf-enabled/phpmyadmin.conf ]; then
+    ln -s /etc/phpmyadmin/apache.conf /etc/apache2/conf-enabled/phpmyadmin.conf 2>/dev/null || true
+fi
+
+# 允許 root 帳號使用密碼登入 phpMyAdmin
+mysql -uroot -pmysql_root -e "ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY 'mysql_root'; FLUSH PRIVILEGES;" 2>/dev/null || \
+mysql -uroot -pmysql_root -e "UPDATE mysql.user SET plugin='mysql_native_password', authentication_string=PASSWORD('mysql_root') WHERE User='root' AND Host='localhost'; FLUSH PRIVILEGES;"
+
+echo "✅ 7. 重啟 Apache 伺服器套用設定..."
 systemctl restart apache2
 
 IP_ADDR=$(hostname -I | awk '{print $1}')
 echo "============================================="
 echo "   🎉 部署已全部完成！"
 echo "============================================="
-echo " - 網頁介面請訪問： http://${IP_ADDR}/aiezfind"
+echo " - AiezFind 介面請訪問： http://${IP_ADDR}/aiezfind"
+echo " - phpMyAdmin  請訪問： http://${IP_ADDR}/phpmyadmin"
+echo "   （登入帳號：root  ／  密碼：mysql_root）"
 echo " - Daemon 守護程序已經自動在背景啟動！"
 echo " - 若要查看 Daemon 狀態，請使用指令："
 echo "   sudo systemctl status aiezfind-daemon.service"
